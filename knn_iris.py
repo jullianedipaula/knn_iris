@@ -1,37 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 
 
 SEPARADOR = "=" * 60
 
-AMOSTRAS_TREINO = np.array([
-    [5.1, 3.5, 1.4, 0.2],
-    [4.9, 3.0, 1.4, 0.2],
-    [4.7, 3.2, 1.3, 0.2],
-    [7.0, 3.2, 4.7, 1.4],
-    [6.4, 3.2, 4.5, 1.5],
-    [6.3, 3.3, 6.0, 2.5],
-    [5.8, 2.7, 5.1, 1.9],
-    [7.1, 3.0, 5.9, 2.1],
-])
+NOMES_CLASSES = ['Setosa', 'Versicolor', 'Virginica']
 
-ROTULOS_TREINO = np.array([
-    'Setosa', 'Setosa', 'Setosa',
-    'Versicolor', 'Versicolor',
-    'Virginica', 'Virginica', 'Virginica',
-])
-
-AMOSTRAS_TESTE = np.array([
-    [5.0, 3.4, 1.5, 0.2],
-    [6.1, 2.8, 4.7, 1.2],
-])
-
-ROTULOS_TESTE = np.array(['Setosa', 'Versicolor'])
-
-MAPA_CLASSE_PARA_NUMERO = {'Setosa': 0, 'Versicolor': 1, 'Virginica': 2}
-MAPA_NUMERO_PARA_CLASSE = {numero: classe for classe, numero in MAPA_CLASSE_PARA_NUMERO.items()}
+MAPA_NUMERO_PARA_CLASSE = {i: nome for i, nome in enumerate(NOMES_CLASSES)}
 
 METRICAS = [
     ('euclidean',      {'metric': 'euclidean'}),
@@ -40,16 +19,40 @@ METRICAS = [
     ('minkowski(p=3)', {'metric': 'minkowski', 'p': 3}),
 ]
 
-CORES_GRAFICO     = ['steelblue', 'tomato', 'seagreen', 'darkorange']
+CORES_GRAFICO      = ['steelblue', 'tomato', 'seagreen', 'darkorange']
 MARCADORES_GRAFICO = ['o', 's', '^', 'D']
 
 
+def carregar_e_verificar_dados():
+    iris = load_iris()
+    X = iris.data
+    y = np.array([NOMES_CLASSES[rotulo] for rotulo in iris.target])
+
+    missing = np.isnan(X).sum()
+    print(f"Verificação de missing values: {missing} valor(es) ausente(s) encontrado(s).")
+
+    print(f"Dataset carregado: {X.shape[0]} amostras, {X.shape[1]} atributos.")
+    for nome in NOMES_CLASSES:
+        print(f"  Classe '{nome}': {np.sum(y == nome)} amostras")
+
+    return X, y
+
+
+def dividir_dados(X, y):
+    X_treino, X_teste, y_treino, y_teste = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=42
+    )
+    print(f"Divisão: {len(X_treino)} amostras de treino | {len(X_teste)} amostras de teste")
+    return X_treino, X_teste, y_treino, y_teste
+
+
 def converter_rotulos_para_numeros(rotulos):
-    return np.array([MAPA_CLASSE_PARA_NUMERO[rotulo] for rotulo in rotulos])
+    mapa = {nome: i for i, nome in enumerate(NOMES_CLASSES)}
+    return np.array([mapa[r] for r in rotulos])
 
 
 def converter_numeros_para_rotulos(numeros):
-    return [MAPA_NUMERO_PARA_CLASSE[numero] for numero in numeros]
+    return [MAPA_NUMERO_PARA_CLASSE[n] for n in numeros]
 
 
 def padronizar_dados(amostras_treino, amostras_teste):
@@ -68,20 +71,20 @@ def treinar_e_avaliar(amostras_treino, rotulos_treino, amostras_teste, rotulos_t
 
 
 def executar_experimento(amostras_treino, rotulos_treino, amostras_teste, rotulos_teste):
-    valores_de_k = range(1, len(amostras_treino) + 1)
+    valores_de_k = range(1, 16)
     resultados   = {}
 
     for nome_metrica, params_metrica in METRICAS:
         acuracias_por_k = []
 
         for k in valores_de_k:
-            acuracia, predicoes = treinar_e_avaliar(
+            acuracia, _ = treinar_e_avaliar(
                 amostras_treino, rotulos_treino,
                 amostras_teste,  rotulos_teste,
                 k, params_metrica
             )
             acuracias_por_k.append(acuracia)
-            print(f"Métrica: {nome_metrica:14s} | K: {k} | Acurácia: {acuracia:.2f} | Predições: {predicoes}")
+            print(f"Métrica: {nome_metrica:14s} | K: {k:2d} | Acurácia: {acuracia:.2f}")
 
         resultados[nome_metrica] = acuracias_por_k
 
@@ -89,7 +92,7 @@ def executar_experimento(amostras_treino, rotulos_treino, amostras_teste, rotulo
 
 
 def exibir_grafico(valores_de_k, resultados):
-    plt.figure(figsize=(9, 5))
+    plt.figure(figsize=(10, 5))
 
     for (nome_metrica, acuracias), cor, marcador in zip(resultados.items(), CORES_GRAFICO, MARCADORES_GRAFICO):
         plt.plot(list(valores_de_k), acuracias, label=nome_metrica,
@@ -99,7 +102,7 @@ def exibir_grafico(valores_de_k, resultados):
     plt.ylabel('Acurácia')
     plt.title('KNN — Acurácia × K por Métrica de Distância')
     plt.xticks(list(valores_de_k))
-    plt.ylim(-0.05, 1.15)
+    plt.ylim(0.5, 1.05)
     plt.legend()
     plt.grid(True, alpha=0.4)
     plt.tight_layout()
@@ -109,19 +112,23 @@ def exibir_grafico(valores_de_k, resultados):
 
 
 def main():
-    rotulos_treino = converter_rotulos_para_numeros(ROTULOS_TREINO)
-    rotulos_teste  = converter_rotulos_para_numeros(ROTULOS_TESTE)
-
-    amostras_treino, amostras_teste = padronizar_dados(AMOSTRAS_TREINO, AMOSTRAS_TESTE)
-
     print(SEPARADOR)
-    print("KNN - Dataset Iris (amostra reduzida)")
-    print(f"Treino: {len(amostras_treino)} amostras | Teste: {len(amostras_teste)} amostras")
+    print("KNN - Dataset Iris Completo")
     print(SEPARADOR)
 
+    X, y = carregar_e_verificar_dados()
+
+    X_treino, X_teste, y_treino, y_teste = dividir_dados(X, y)
+
+    rotulos_treino = converter_rotulos_para_numeros(y_treino)
+    rotulos_teste  = converter_rotulos_para_numeros(y_teste)
+
+    X_treino, X_teste = padronizar_dados(X_treino, X_teste)
+
+    print(SEPARADOR)
     valores_de_k, resultados = executar_experimento(
-        amostras_treino, rotulos_treino,
-        amostras_teste,  rotulos_teste
+        X_treino, rotulos_treino,
+        X_teste,  rotulos_teste
     )
 
     print(SEPARADOR)
